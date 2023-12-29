@@ -10,16 +10,16 @@ REFLECT(
     (bool) y
 )};
 
-//static_assert(reflection::sizeof_fields<MyStruct>() == 5, "");
+static_assert(reflection::sizeof_fields<MyStruct>::value == 5, "");
 
 int main()
 {   
     MyStruct x{ 10, true };
 
-    int a[reflection::sizeof_fields<MyStruct>()] = {};
+    //int a[reflection::sizeof_fields<MyStruct>()] = {};
     
     std::cout << reflection::to_string(x) << '\n';
-    std::cout << reflection::sizeof_fields<MyStruct>() << '\n';
+    //std::cout << reflection::sizeof_fields<MyStruct>() << '\n';
 
     return 0;
 }

@@ -2,6 +2,8 @@
 
 #include <string>
 
+/* MACROS */
+
 #ifndef REFLECT_LIB_ACTIVE
 #define REFLECT_LIB_ACTIVE
 #endif
@@ -51,13 +53,15 @@
 * struct to hold info about a member variable
 */
 #define X(N, arg) PAIR(arg);            \
-template<class C>                    \
+template<class C>                       \
 struct field_data<N, C>                 \
 {                                       \
     constexpr static bool SET = true;   \
+    constexpr static std::size_t size = \
+        sizeof(C::STRIP(arg));          \
+                                        \
     C& self;                            \
-                                        \   
-    field_data() = default;             \
+                                        \
     field_data(C& c) :                  \
     self(c) {}                          \
                                         \
@@ -69,11 +73,6 @@ struct field_data<N, C>                 \
     constexpr const char* name() const  \
     {                                   \
         return XSTR(STRIP(arg));        \
-    }                                   \
-                                        \
-    constexpr std::size_t size() const  \
-    {                                   \
-        return sizeof(self.STRIP(arg)); \
     }                                   \
 };
 
@@ -91,38 +90,43 @@ APPLYX_(XPASTE(APPLYX, PP_NARG(__VA_ARGS__)), __VA_ARGS__)
 
 namespace reflection
 {
+    /* UTILS */
+
+    /*
+    * enables access to private and protected member variables
+    */
     struct reflector
     {
+        template<int N, class C> using field_t = typename C::template field_data<N, C>;
+
         template<int N, class C>
-        static typename C::template field_data<N, C> get_field_data(C& c)
+        static field_t<N, C> get_field_data(C& c)
         {
             return typename C::template field_data<N, C>(c);
         }
+    };
 
-        template<int N, class C>
-        static typename C::template field_data<N, C> get_field_data()
-        {
-            return typename C::template field_data<N, C>();
-        }
+    template<int N, class C>
+    struct sizeof_fields_helper
+    {
+        constexpr static std::size_t value = reflector::field_t<N, C>::size + sizeof_fields_helper<N-1, C>::value;
+    };
+
+    template<class C>
+    struct sizeof_fields_helper<0, C>
+    {
+        constexpr static std::size_t value = reflector::field_t<0, C>::size;
     };
     
     template<class C, int N, bool S>
     struct for_each_helper
     {
         template<typename F>
-        constexpr static void apply(C& c, F&& f)
+        constexpr static void apply_visitor(C& c, F&& f)
         {
             f(reflector::get_field_data<N>(c));
             
-            for_each_helper<C, N+1, (N+1 < C::N_FIELDS)>::apply(c, f);
-        }
-
-        template<typename F>
-        constexpr static void apply(F&& f)
-        {
-            f(reflector::get_field_data<N, C>());
-            
-            for_each_helper<C, N+1, (N+1 < C::N_FIELDS)>::apply(f);
+            for_each_helper<C, N+1, (N+1 < C::N_FIELDS)>::apply_visitor(c, f);
         }
     };
     
@@ -130,26 +134,38 @@ namespace reflection
     struct for_each_helper<C, N, false>
     {
         template<typename F>
-        constexpr static void apply(C& c, F&& f)
-        {
-        }
-
-        template<typename F>
-        constexpr static void apply(F&& f)
+        constexpr static void apply_visitor(C& c, F&& f)
         {
         }
     };
+
+    /* PREMADE TOOLS */
+
+    /*
+    * recursively sum sizeof() for all member variables
+    */
+    template<class C>
+    struct sizeof_fields
+    {
+        constexpr static std::size_t value = sizeof_fields_helper<C::N_FIELDS-1, C>::value;
+    };
     
+    /*
+    * loop all member variables (optional: apply a visitor function)
+    */
     template<class C>
     struct for_each : public for_each_helper<C, 0, (C::N_FIELDS > 0)>
     {};
     
+    /*
+    * string of delimited field=value pairs for each member variable
+    */
     template<class C>
     std::string to_string(C& c, const char delim = '|')
     {
         std::string s;
         
-        for_each<C>::apply(c, [&](auto f)
+        for_each<C>::apply_visitor(c, [&](auto f)
         {
             s += std::string(f.name()) +
                 "=" +
@@ -158,18 +174,5 @@ namespace reflection
         });
         
         return s.substr(0, s.length() - 1);
-    }
-    
-    template<class C>
-    constexpr std::size_t sizeof_fields()
-    {
-        std::size_t size = 0;
-        
-        for_each<C>::apply([&](auto f)
-        {
-            size += f.size();
-        });
-        
-        return size;
     }
 }
