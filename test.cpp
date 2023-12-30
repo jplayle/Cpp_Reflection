@@ -5,31 +5,31 @@
 
 using namespace reflection;
 
-struct MyStruct
+struct A
 {
 REFLECT(
     (int) x,
     (bool) y
 )};
 
-static_assert(
-    sizeof_fields<MyStruct>::value == 5,
-"");
+// query sum size of fields
+static_assert(sizeof_fields<A>::value == 5,     "");
 
-static_assert(
-    std::is_same<
-        reflector::field_t<0, MyStruct>::type, // int x;
-        int>
-    ::value == true,
-"");
+// query existence of members in struct by macro or stringified member name
+static_assert(has_member<A>::HAS(x)   == true,  "");
+static_assert(has_member<A>::has("x") == true,  "");
 
-//static_assert(has_x<MyStruct>::value == true, "");
+static_assert(has_member<A>::HAS(f)   == false, "");
+static_assert(has_member<A>::has("i") == false, "");
+
+// observe type of member at position
+static_assert( std::is_same<int, reflector::field_t<0, A>::type>::value == true, "");
 
 int main()
 {   
-    MyStruct x{ 10, true };
+    A a{ 10, true };
     
-    std::cout << to_string(x) << '\n';
+    std::cout << to_string(a) << '\n'; // hello=10|world=1
 
     return 0;
 }

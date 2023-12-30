@@ -1,8 +1,5 @@
 #pragma once
 
-// to-do
-// - has_member structs
-
 #include <string>
 
 /* MACROS */
@@ -52,7 +49,7 @@
 #define APPLYX_(M, ...) M(__VA_ARGS__)
 
 /*
-* struct to hold info about a member variable
+* member variable declaration and corresponding struct with member's info
 */
 #define X(N, arg)                         \
 PAIR(arg);                                \
@@ -60,39 +57,22 @@ template<class C>                         \
 struct field_data<N, C>                   \
 {                                         \
     using type = decltype(C::STRIP(arg)); \
-    constexpr static bool SET = true;     \
+                                          \
     constexpr static std::size_t size =   \
         sizeof(C::STRIP(arg));            \
+                                          \
+    constexpr static const char* name =   \
+        XSTR(STRIP(arg));                 \
                                           \
     C& self;                              \
                                           \
     field_data(C& c) :                    \
     self(c) {}                            \
                                           \
-    auto& get() const                     \
+    auto& get()                           \
     {                                     \
         return self.STRIP(arg);           \
     }                                     \
-                                          \
-    constexpr const char* name() const    \
-    {                                     \
-        return XSTR(STRIP(arg));          \
-    }                                     \
-};                                        \
-HAS_MEM_VAR_STRUCTS(arg)
-
-#define HAS_MEM_VAR_STRUCTS(arg)          \
-template<class C, typename T = int>       \
-struct XPASTE(has_member_, STRIP(arg))    \
-{                                         \
-    constexpr static bool value = false;  \
-};                                        \
-                                          \
-template<class C>                         \
-struct XPASTE(has_member_, STRIP(arg))    \
-<C, decltype((void)C::STRIP(arg), 0)>     \
-{                                         \
-    constexpr static bool value = true;   \
 };
 
 /*
@@ -105,10 +85,7 @@ constexpr static int N_FIELDS =           \
 friend struct reflector;                  \
                                           \
 template<int N, class C>                  \
-struct field_data                         \
-{                                         \
-    constexpr static bool SET = false;    \
-};                                        \
+struct field_data {};                     \
                                           \
 APPLYX_(XPASTE(APPLYX, PP_NARG(__VA_ARGS__)), __VA_ARGS__)
 
@@ -143,6 +120,25 @@ namespace reflection
     {
         constexpr static std::size_t value = reflector::field_t<0, C>::size;
     };
+
+    template<int N, class C>
+    struct has_member_helper
+    {
+        constexpr static bool has(const char* member)
+        {
+            return reflector::field_t<N, C>::name == member |
+                has_member_helper<N-1, C>::has(member);
+        }
+    };
+
+    template<class C>
+    struct has_member_helper<0, C>
+    {
+        constexpr static bool has(const char* member)
+        {
+            return reflector::field_t<0, C>::name == member;
+        }
+    };
     
     template<class C, int N, bool S>
     struct for_each_helper
@@ -168,35 +164,55 @@ namespace reflection
     /* PREMADE TOOLS */
 
     /*
-    * recursively sum sizeof() for all member variables
+    * compile-time - sum sizeof() for all member variables
     */
     template<class C>
     struct sizeof_fields : sizeof_fields_helper<C::N_FIELDS-1, C>
     {};
+
+    /*
+    * compile-time - check whether member exists in a class/struct
+    */
+    template<class C>
+    struct has_member
+    {
+        constexpr static bool has(const char* member)
+        {
+            return has_member_helper<C::N_FIELDS-1, C>::has(member);
+        }
+
+        #define HAS(M) has(#M)
+    };
     
     /*
-    * loop all member variables (optional: apply a visitor function)
+    * run-time - loop all member variables (optional: apply a visitor function)
     */
     template<class C>
     struct for_each : for_each_helper<C, 0, (C::N_FIELDS > 0)>
     {};
     
     /*
-    * string of delimited field=value pairs for each member variable
+    * run-time - string of delimited field=value pairs for each member variable
     */
     template<class C>
-    std::string to_string(C& c, const char delim = '|')
+    const std::string to_string(C& c, const char delim = '|')
     {
         std::string s;
         
         for_each<C>::apply_visitor(c, [&](auto f)
         {
-            s += std::string(f.name()) +
+            s += std::string(f.name) +
                 "=" +
                 std::to_string(f.get()) +
                 delim;
         });
         
         return s.substr(0, s.length() - 1);
+    }
+
+    template<class C>
+    const std::string to_string(C&& c, const char delim = '|')
+    {
+        return to_string(c, delim);
     }
 }
