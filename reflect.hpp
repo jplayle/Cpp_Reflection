@@ -122,17 +122,17 @@ namespace reflection
     };
 
     template<int N, class C>
-    struct has_member_helper
+    struct member_view_helper
     {
         constexpr static bool has(const char* member)
         {
             return reflector::field_t<N, C>::name == member |
-                has_member_helper<N-1, C>::has(member);
+                member_view_helper<N-1, C>::has(member);
         }
     };
 
     template<class C>
-    struct has_member_helper<0, C>
+    struct member_view_helper<0, C>
     {
         constexpr static bool has(const char* member)
         {
@@ -174,11 +174,11 @@ namespace reflection
     * compile-time - check whether member exists in a class/struct
     */
     template<class C>
-    struct has_member
+    struct member_view
     {
         constexpr static bool has(const char* member)
         {
-            return has_member_helper<C::N_FIELDS-1, C>::has(member);
+            return member_view_helper<C::N_FIELDS-1, C>::has(member);
         }
 
         #define HAS(M) has(#M)
