@@ -11,6 +11,8 @@ C++ Reflection Tools
 
 Loop fields and apply a visitor function:
 
+    A a{ 10, true };
+    
     reflection::for_each<A>::apply_visitor(a, [&](auto f)
     {
 	    f.name;  // member name e.g. "x"
@@ -20,8 +22,8 @@ Loop fields and apply a visitor function:
  
 to_string() function:
 
-    A a{ 10, true };
-    reflection::to_string(a); // x=10|y=1
+    
+    reflection::to_string(a); // "x=10|y=1"
 
 Checker whether members are defined (constexpr):
 
