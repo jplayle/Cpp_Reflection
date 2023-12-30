@@ -3,8 +3,6 @@
 #include "reflect.hpp"
 #include <iostream>
 
-using namespace ;
-
 struct A
 {
 REFLECT(
@@ -13,7 +11,7 @@ REFLECT(
 )};
 
 // query sum size of fields
-static_assert(sizeof_fields<A>::value == sizeof(int) + sizeof(bool), "");
+static_assert(reflection::sizeof_fields<A>::value == sizeof(int) + sizeof(bool), "");
 
 // query existence of members in struct by macro or stringified member name
 static_assert(reflection::member_view<A>::HAS(x)   == true,  "");
@@ -29,7 +27,7 @@ int main()
 {   
     A a{ 10, true };
     
-    std::cout << to_string(a) << '\n'; // hello=10|world=1
+    std::cout << reflection::to_string(a) << '\n'; // x=10|y=1
 
     return 0;
 }
