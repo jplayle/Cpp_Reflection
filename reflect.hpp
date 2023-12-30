@@ -1,5 +1,8 @@
 #pragma once
 
+// to-do
+// - has_member structs
+
 #include <string>
 
 /* MACROS */
@@ -10,15 +13,14 @@
 
 /* generic macros */
 
-#define REM(...) __VA_ARGS__
-#define PAIR(x) REM x
-#define STRIP(x) EAT x
-#define XSTR(s) STR(s)
-#define STR(s) #s
-#define EAT(...)
-
-#define PASTE(a,b) a ## b
 #define XPASTE(a,b) PASTE(a,b)
+#define PASTE(a,b)  a ## b
+#define EAT(...)
+#define REM(...)    __VA_ARGS__
+#define STRIP(x)    EAT x
+#define PAIR(x)     REM x
+#define XSTR(s)     STR(s)
+#define STR(s)      #s
 
 /* variadic expansion macros */
 
@@ -52,38 +54,62 @@
 /*
 * struct to hold info about a member variable
 */
-#define X(N, arg) PAIR(arg);            \
-template<class C>                       \
-struct field_data<N, C>                 \
-{                                       \
-    constexpr static bool SET = true;   \
-    constexpr static std::size_t size = \
-        sizeof(C::STRIP(arg));          \
-                                        \
-    C& self;                            \
-                                        \
-    field_data(C& c) :                  \
-    self(c) {}                          \
-                                        \
-    auto& get() const                   \
-    {                                   \
-        return self.STRIP(arg);         \
-    }                                   \
-                                        \
-    constexpr const char* name() const  \
-    {                                   \
-        return XSTR(STRIP(arg));        \
-    }                                   \
+#define X(N, arg)                         \
+PAIR(arg);                                \
+template<class C>                         \
+struct field_data<N, C>                   \
+{                                         \
+    using type = decltype(C::STRIP(arg)); \
+    constexpr static bool SET = true;     \
+    constexpr static std::size_t size =   \
+        sizeof(C::STRIP(arg));            \
+                                          \
+    C& self;                              \
+                                          \
+    field_data(C& c) :                    \
+    self(c) {}                            \
+                                          \
+    auto& get() const                     \
+    {                                     \
+        return self.STRIP(arg);           \
+    }                                     \
+                                          \
+    constexpr const char* name() const    \
+    {                                     \
+        return XSTR(STRIP(arg));          \
+    }                                     \
+};                                        \
+HAS_MEM_VAR_STRUCTS(arg)
+
+#define HAS_MEM_VAR_STRUCTS(arg)          \
+template<class C, typename T = int>       \
+struct XPASTE(has_member_, STRIP(arg))    \
+{                                         \
+    constexpr static bool value = false;  \
+};                                        \
+                                          \
+template<class C>                         \
+struct XPASTE(has_member_, STRIP(arg))    \
+<C, decltype((void)C::STRIP(arg), 0)>     \
+{                                         \
+    constexpr static bool value = true;   \
 };
 
 /*
 * wrap member variables in this macro to enable reflection.
 */
-#define REFLECT(...)                                       \
-constexpr static int N_FIELDS = PP_NARG(__VA_ARGS__);      \
-friend struct reflector;                                   \
-template<int N, class C>                                   \
-struct field_data{ constexpr static bool SET = false; };   \
+#define REFLECT(...)                      \
+constexpr static int N_FIELDS =           \
+    PP_NARG(__VA_ARGS__);                 \
+                                          \
+friend struct reflector;                  \
+                                          \
+template<int N, class C>                  \
+struct field_data                         \
+{                                         \
+    constexpr static bool SET = false;    \
+};                                        \
+                                          \
 APPLYX_(XPASTE(APPLYX, PP_NARG(__VA_ARGS__)), __VA_ARGS__)
 
 /* --- */
@@ -145,16 +171,14 @@ namespace reflection
     * recursively sum sizeof() for all member variables
     */
     template<class C>
-    struct sizeof_fields
-    {
-        constexpr static std::size_t value = sizeof_fields_helper<C::N_FIELDS-1, C>::value;
-    };
+    struct sizeof_fields : sizeof_fields_helper<C::N_FIELDS-1, C>
+    {};
     
     /*
     * loop all member variables (optional: apply a visitor function)
     */
     template<class C>
-    struct for_each : public for_each_helper<C, 0, (C::N_FIELDS > 0)>
+    struct for_each : for_each_helper<C, 0, (C::N_FIELDS > 0)>
     {};
     
     /*
